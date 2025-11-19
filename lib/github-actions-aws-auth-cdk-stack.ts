@@ -3,21 +3,31 @@ import { Construct } from 'constructs'
 import { aws_iam as iam } from 'aws-cdk-lib'
 
 export interface GithubActionsAwsAuthCdkStackProps extends cdk.StackProps {
-  readonly repositoryConfig: { owner: string; }[]
+  readonly repositoryConfig: { owner: string }[]
 }
 
 export class GithubActionsAwsAuthCdkStack extends cdk.Stack {
-  constructor(scope: Construct, id: string, props: GithubActionsAwsAuthCdkStackProps) {
+  constructor(
+    scope: Construct,
+    id: string,
+    props: GithubActionsAwsAuthCdkStackProps,
+  ) {
     super(scope, id, props)
 
     const githubDomain = 'https://token.actions.githubusercontent.com'
 
-    const githubProvider = new iam.OpenIdConnectProvider(this, 'GithubActionsProvider', {
-      url: githubDomain,
-      clientIds: ['sts.amazonaws.com'],
-    })
+    const githubProvider = new iam.OpenIdConnectProvider(
+      this,
+      'GithubActionsProvider',
+      {
+        url: githubDomain,
+        clientIds: ['sts.amazonaws.com'],
+      },
+    )
 
-    const iamRepoDeployAccess = props.repositoryConfig.map(r => `repo:${r.owner}/*`)
+    const iamRepoDeployAccess = props.repositoryConfig.map(
+      (r) => `repo:${r.owner}/*`,
+    )
 
     const conditions: iam.Conditions = {
       StringLike: {
@@ -29,10 +39,16 @@ export class GithubActionsAwsAuthCdkStack extends cdk.Stack {
     }
 
     const role = new iam.Role(this, 'gitHubDeployRole', {
-      assumedBy: new iam.WebIdentityPrincipal(githubProvider.openIdConnectProviderArn, conditions),
-      managedPolicies: [iam.ManagedPolicy.fromAwsManagedPolicyName('AdministratorAccess')],
+      assumedBy: new iam.WebIdentityPrincipal(
+        githubProvider.openIdConnectProviderArn,
+        conditions,
+      ),
+      managedPolicies: [
+        iam.ManagedPolicy.fromAwsManagedPolicyName('AdministratorAccess'),
+      ],
       roleName: 'githubActionsDeployRole',
-      description: 'This role is used via GitHub Actions to deploy with AWS CDK or Terraform on the target AWS account',
+      description:
+        'This role is used via GitHub Actions to deploy with AWS CDK or Terraform on the target AWS account',
       maxSessionDuration: cdk.Duration.hours(12),
     })
 

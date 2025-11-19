@@ -1,3 +1,5 @@
 {
-  "repoOwner": "deeheber"
+  "repoOwner": "deeheber",
+  "cli-telemetry": false,
+  "acknowledged-issue-numbers": [34892]
 }
