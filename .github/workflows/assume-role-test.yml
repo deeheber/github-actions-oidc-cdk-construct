@@ -1,7 +1,6 @@
 name: Assume Role and Run AWS STS Get Caller Identity
 
 on:
-  # trigger manually in the Github actions UI
   workflow_dispatch:
 
 jobs:
@@ -10,19 +9,16 @@ jobs:
     runs-on: ubuntu-latest
 
     permissions:
-        id-token: write
-        contents: read
+      id-token: write
+      contents: read
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
       - name: Configure AWS credentials from OIDC
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
-          # i.e. arn:aws:iam::123456789012:role/YourRoleName
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-region: us-east-1
+          mask-aws-account-id: true
 
       - name: Get AWS Caller Identity
         run: aws sts get-caller-identity
