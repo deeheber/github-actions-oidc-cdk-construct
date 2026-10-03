@@ -1,129 +1,89 @@
-# Github Actions AWS Auth CDK Stack
+# GitHub Actions AWS authentication
 
-This AWS Cloud Developer Kit (CDK) stack provides the necessary credentials to enable OIDC Authentication integration for Github Actions access to an AWS account. It allows the user to integrate Github Actions workflows with an AWS account without having to save AWS Credentials in their Github Secrets.
+This CDK application creates a GitHub OIDC provider and IAM role for GitHub Actions to access AWS without stored access keys. Based on the [AWS sample](https://github.com/aws-samples/github-actions-oidc-cdk-construct).
 
-This will only be needed to be provisioned in AWS accounts where we plan to deploy via Github Actions (development, staging, prod).
+The role trusts all repositories, branches, and environments under each configured GitHub owner.
 
-**Note this was forked from https://github.com/aws-samples/github-actions-oidc-cdk-construct and adjusted for our needs.**
+`PowerUserAccess` is a demo default and excludes most IAM operations. For production, scope repository trust and deployment permissions, including any assumed CDK roles.
 
-## What it does
+## Requirements
 
-1. Deploys an AWS Identity and Access Management role with OIDC authorization scoped specifically for Github OIDC access.
-2. Outputs the ARN of the role to be used in Github environment
+- Node.js 24 and npm.
+- AWS CLI credentials with permission to bootstrap CDK and create IAM resources in the target account.
+- No existing GitHub OIDC provider in the target AWS account; importing providers or migrating existing stacks is not supported.
 
-## 🎒 Pre-requisites
-
-The [aws-cli](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html) must be installed -and- configured with an AWS account on the deployment machine (see <https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html> for instructions on how to do this on your preferred development platform).
-
-This project requires [Node.js](http://nodejs.org/). To make sure you have it available on your machine, try running the following command.
+## Deploy
 
 ```sh
-node -v
-```
-
-For best experience we recommend installing CDK globally: `npm install -g aws-cdk`
-
-## 🚀 Setup
-
-### 0/ Use git to clone this repository to your local environment
-
-```sh
-git clone #insert-http-or-ssh-for-this-repository
-```
-
-### 1/ Set up your AWS environment
-
-Configure your AWS credentials:
-`aws configure`
-
-For more on setting up your AWS Credentials please visit [setting up your aws credentials](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html)
-
-### 2/ Prepare your CDK environment
-
-1. Navigate to CDK Directory
-2. Set up your emissions factor document (see Set up your emissions factor document below)
-3. Copy `cdk.context.template.json` or remove .template
-4. Enter your parameters in `cdk.context.json` (see Context Parameters below)
-
-#### --Context Parameters--
-
-Before deployment navigate to `cdk.context.json` and update the required context parameters.
-
-- Required:`repoOwner` The owner of the Github repository. This can be found in the url of your Github repository
-- Required:`repoName` The name of the repository
-- Required:`repoBranch` The branch to allow for deployment (default is `/main`)
-
-### 3/ Bootstrap CDK
-
-At this point you should have already saved your AWS credentials to environmental variables using `aws configure` or a similar command. The bootstrap step sets up several dependencies for CDK that will allow you to create resources using the CDK command line interface. Please also note that you will need a generally permissive IAM role to bootstrap CDK. This can be done using an AWS managed developer role, but we strongly recommend consulting your security practices to ensure that you adhere to least privilege.
-
-```sh
-cdk bootstrap # if you are authenticated with aws configure
-```
-
-or
-
-```sh
-cdk bootstrap aws://ACCOUNT-NUMBER/REGION # if you are bootstrapping a different account
-```
-
-### 3/ Install dependencies, build, and synthesize the CDK app
-
-Install dependencies
-
-```sh
+git clone https://github.com/deeheber/github-actions-oidc-cdk-construct.git
+cd github-actions-oidc-cdk-construct
 npm ci
 ```
 
-Build your node application and environment
+Set your GitHub owner in `cdk.context.json`:
+
+| Field         | Value                                            |
+| ------------- | ------------------------------------------------ |
+| `repoOwner`   | GitHub user or organization name                 |
+| `repoOwnerId` | Numeric GitHub owner ID, stored as a JSON string |
+| `awsRegion`   | Optional CloudFormation stack region override    |
+
+Find the user or organization ID with GitHub CLI:
+
+```sh
+gh api users/YOUR-OWNER --jq .id
+```
+
+Or use the `id` field at `https://api.github.com/users/YOUR-OWNER`. Use the owner's ID, not the repository ID.
+
+Select your AWS profile and region, then check the target account:
+
+```sh
+export AWS_PROFILE=your-profile
+export AWS_REGION=your-region
+aws sts get-caller-identity
+```
+
+Build, bootstrap, inspect, and deploy:
 
 ```sh
 npm run build
+npm test
+npm run cdk -- bootstrap
+npm run cdk -- synth
+npm run cdk -- diff
+npm run cdk -- deploy
 ```
 
-Synthesize the CDK application
+Deploy once per AWS account. IAM resources are global; CloudFormation and CDK bootstrap resources use the selected region. Keep that region for future updates. The `awsRegion` context value takes precedence.
 
-```sh
-cdk synth
+Deployment outputs the role ARN as `GithubActionOidcIamRoleArn`.
+
+## Use from GitHub Actions
+
+1. In a repository under the configured owner, create a GitHub environment named `dev`.
+2. Add an environment secret named `AWS_ROLE_TO_ASSUME` containing the output role ARN.
+3. Use [the example workflow](.github/workflows/assume-role-test.yml), adjusting its AWS region if needed.
+4. Run **Assume Role and Run AWS STS Get Caller Identity** from the Actions tab.
+
+The workflow prints the assumed AWS identity to verify authentication, not deployment permissions.
+
+The trust policy accepts legacy and immutable subjects:
+
+```text
+repo:OWNER/*
+repo:OWNER@OWNER_ID/*
 ```
 
-### 4/ Deploy the application
+Legacy subjects trust owners by name. See [GitHub's OIDC reference](https://docs.github.com/en/actions/reference/security/oidc#immutable-subject-claims) for immutable subjects. Custom subject templates are not covered.
 
-✅ Recommended: deploy for local development
+## Development
 
-```sh
-cdk deploy --all
-```
+- `npm run build`: compile and type-check with TypeScript.
+- `npm run watch`: compile on changes.
+- `npm test`: run Vitest once.
+- `npm run test:watch`: rerun tests on changes.
+- `npm run format:check`: check formatting without edits.
+- `npm run format`: apply formatting.
 
-## 🛠 Usage
-
-Now that your OIDC role is set up and running in your accounts follow the linked directions to integrate with an existing Github Actions Workflow.
-
-[Configuring OpenID Connect in Amazon Web Services](https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services)
-
-...or follow the AWS Security Blog post below
-
-[Use IAM roles to connect GitHub Actions to actions in AWS] (https://aws.amazon.com/blogs/security/use-iam-roles-to-connect-github-actions-to-actions-in-aws/)
-
-## 💲 Cost and Licenses
-
-You are responsible for the cost of the AWS services used while running this application. There is no additional cost for the kit.
-
-The AWS CDK stacks for this kit include configuration parameters that you can customize. Some of these settings, such as instance type, affect the cost of deployment. For cost estimates, see the pricing pages for each AWS service you use. Prices are subject to change.
-
-Tip: After you deploy the application, create AWS Cost and Usage Reports to track costs associated with the application. These reports deliver billing metrics to an S3 bucket in your account. They provide cost estimates based on usage throughout each month and aggregate the data at the end of the month. For more information, see What are AWS Cost and Usage Reports?
-
-This sample doesn’t require any software license or AWS Marketplace subscription.
-
-## 🔐 Security
-
-See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more information.
-
-## Useful commands
-
-- `npm run build` compile typescript to js
-- `npm run watch` watch for changes and compile
-- `npm run test` perform the jest unit tests
-- `cdk deploy` deploy this stack to your default AWS account/region
-- `cdk diff` compare deployed stack with current state
-- `cdk synth` emits the synthesized CloudFormation template
+See [CONTRIBUTING.md](CONTRIBUTING.md) and [LICENSE](LICENSE).

@@ -19,6 +19,7 @@ new GithubActionsAwsAuthCdkStack(app, 'GithubActionsAwsAuthCdkStack', {
   repositoryConfig: [
     {
       owner: app.node.tryGetContext('repoOwner'),
+      ownerId: app.node.tryGetContext('repoOwnerId'),
     },
   ],
 })

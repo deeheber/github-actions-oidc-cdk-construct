@@ -1,5 +1,7 @@
 {
   "repoOwner": "deeheber",
+  "repoOwnerId": "12616554",
+  "awsRegion": "us-east-1",
   "cli-telemetry": false,
   "acknowledged-issue-numbers": [34892]
 }
